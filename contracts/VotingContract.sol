@@ -20,7 +20,12 @@ contract VotingContract {
         uint256 vote;
     }
 
-    constructor() {
+    constructor(bytes32[] memory contestantNames) {
+        for (uint256 i = 0; i < contestantNames.length; i++) {
+            contestants.push(
+                Contestant({name: contestantNames[i], voteCount: 0})
+            );
+        }
         chairPerson = msg.sender;
     }
 
