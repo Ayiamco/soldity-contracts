@@ -26,6 +26,11 @@ describe("Voting Contract 🥇", async () => {
   });
 
   it("Should allow only chairperson to change chairperson 🏬", async function () {
+    const tryChangeChairPerson = async () => {
+      await votingContract
+        .connect(accounts[1])
+        .changeChairPerson(accounts[1].address);
+    };
     await expect(tryChangeChairPerson()).to.be.rejectedWith(
       "VM Exception while processing transaction: reverted with reason string 'Only chairperson allowed."
     );
@@ -36,15 +41,86 @@ describe("Voting Contract 🥇", async () => {
     let chairPerson = await votingContract.chairPerson();
     expect(chairPerson).to.equal(accounts[1].address);
   });
+
+  it("Should register voter 🏬", async () => {
+    let votersAddress1 = accounts[1].address;
+    let votersAddress2 = accounts[2].address;
+    let txn = await votingContract.registerVoters([
+      votersAddress1,
+      votersAddress2,
+    ]);
+    await txn.wait();
+    let voter1 = await votingContract.getVoter(votersAddress1);
+    let voter2 = await votingContract.getVoter(votersAddress2);
+    expect(Number(voter1.weight)).equals(1);
+    expect(Number(voter2.weight)).equals(1);
+  });
+
+  it("Should let only registered users vote", async () => {
+    const tryVote = async () => {
+      let voter = accounts[1];
+      txn = await votingContract.connect(voter).vote(1);
+    };
+    await expect(tryVote()).to.be.rejectedWith(
+      "VM Exception while processing transaction: reverted with reason string 'Only registered users allowed.'"
+    );
+  });
+
+  it("Should not let registered voters vote twice", async () => {
+    const tryVoteTwice = async () => {
+      let voter = accounts[1];
+      let txn = await votingContract.registerVoters([voter.address]);
+      await txn.wait();
+      txn = await votingContract.connect(voter).vote(1);
+      txn = await votingContract.connect(voter).vote(1);
+    };
+    await expect(tryVoteTwice()).to.be.rejectedWith(
+      "VM Exception while processing transaction: reverted with reason string 'Already voted.'"
+    );
+  });
+
+  it("Should allow only registered voters to delegate their votes🏬", async () => {
+    const tryDelegate = async () => {
+      let voter = accounts[1];
+      let delegate = accounts[2].address;
+      await votingContract.connect(voter).delegate(delegate);
+    };
+    await expect(tryDelegate()).to.be.rejectedWith(
+      "VM Exception while processing transaction: reverted with reason string 'You are not a registered voter.'"
+    );
+  });
+
+  it("Should not delegate if voter has voted 🏬", async () => {
+    const tryDelegateAfterVoting = async () => {
+      let voter = accounts[1];
+      let delegate = accounts[2].address;
+      let txn = await votingContract.registerVoters([voter.address]);
+      await txn.wait();
+      txn = await votingContract.connect(voter).vote(1);
+      await txn.wait();
+      txn = await votingContract.connect(voter).delegate(delegate);
+      await txn.wait();
+    };
+    await expect(tryDelegateAfterVoting()).to.be.rejectedWith(
+      "VM Exception while processing transaction: reverted with reason string 'Already voted.'"
+    );
+  });
+
+  it("Should not allow cyclic delegation🏬", async () => {
+    const doCyclicDelegation = async () => {
+      let voter = accounts[1];
+      let delegate = accounts[2];
+      await votingContract.registerVoters([voter.address, delegate.address]);
+      await votingContract.connect(voter).delegate(delegate.address);
+      await votingContract.connect(delegate).delegate(voter.address);
+    };
+    await expect(doCyclicDelegation()).to.be.rejectedWith(
+      "VM Exception while processing transaction: reverted with reason string 'Cyclic delegation not allowed.'"
+    );
+  });
 });
 
 //Helper functions
-async function tryChangeChairPerson() {
-  await votingContract
-    .connect(accounts[1])
-    .changeChairPerson(accounts[1].address);
-}
-
 async function createBytes() {
   let namesInByes = [];
   contestantNames.forEach((name) => {
