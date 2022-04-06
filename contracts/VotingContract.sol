@@ -1,6 +1,8 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
+import "hardhat/console.sol";
+
 contract VotingContract {
     address public chairPerson;
     Contestant[] public contestants;
@@ -80,14 +82,22 @@ contract VotingContract {
         Voter storage sender = registeredVoters[msg.sender];
         require(!sender.hasVoted, "Already voted.");
         require(sender.weight > 0, "You are not a registered voter.");
+        require(to != msg.sender, "Self-delegation is disallowed.");
 
         while (registeredVoters[to].delegate != address(0)) {
             to = registeredVoters[to].delegate;
-
             // Sender's Delegate already delegated vote to sender
             require(to != msg.sender, "Cyclic delegation not allowed.");
         }
 
         registeredVoters[msg.sender].delegate = to;
+        sender.hasVoted = true;
+
+        Voter storage delegateVoter = registeredVoters[to];
+        if (!delegateVoter.hasVoted) {
+            delegateVoter.weight += sender.weight;
+        } else {
+            contestants[delegateVoter.vote].voteCount += sender.weight;
+        }
     }
 }

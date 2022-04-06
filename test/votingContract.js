@@ -95,11 +95,8 @@ describe("Voting Contract 🥇", async () => {
       let voter = accounts[1];
       let delegate = accounts[2].address;
       let txn = await votingContract.registerVoters([voter.address]);
-      await txn.wait();
       txn = await votingContract.connect(voter).vote(1);
-      await txn.wait();
       txn = await votingContract.connect(voter).delegate(delegate);
-      await txn.wait();
     };
     await expect(tryDelegateAfterVoting()).to.be.rejectedWith(
       "VM Exception while processing transaction: reverted with reason string 'Already voted.'"
@@ -109,15 +106,45 @@ describe("Voting Contract 🥇", async () => {
   it("Should not allow cyclic delegation🏬", async () => {
     const doCyclicDelegation = async () => {
       let voter = accounts[1];
-      let delegate = accounts[2];
-      await votingContract.registerVoters([voter.address, delegate.address]);
-      await votingContract.connect(voter).delegate(delegate.address);
-      await votingContract.connect(delegate).delegate(voter.address);
+      let delegate1 = accounts[2];
+      let delegate2 = accounts[3];
+      let txn = await votingContract.registerVoters([
+        voter.address,
+        delegate1.address,
+        delegate2.address,
+      ]);
+      await txn.wait();
+      txn = await votingContract.connect(delegate1).delegate(delegate2.address);
+      await txn.wait();
+      txn = await votingContract.connect(delegate2).delegate(voter.address);
+      await txn.wait();
+      txn = await votingContract.connect(voter).delegate(delegate1.address);
+      await txn.wait();
     };
     await expect(doCyclicDelegation()).to.be.rejectedWith(
       "VM Exception while processing transaction: reverted with reason string 'Cyclic delegation not allowed.'"
     );
   });
+
+  it("Should increase delegate weight (delegate has not voted)", async () => {
+    let voter = accounts[1];
+    let delegate = accounts[2];
+    let delegate2 = accounts[3];
+    await votingContract.registerVoters([
+      voter.address,
+      delegate.address,
+      delegate2.address,
+    ]);
+    await votingContract.connect(voter).delegate(delegate.address);
+    await votingContract.connect(delegate2).delegate(delegate.address);
+
+    let updatedDelegate = await votingContract.getVoter(delegate.address);
+    expect(Number(updatedDelegate.weight)).equals(3);
+  });
+
+  it("Should increase contestant vote count (delegate has voted)", async () => {});
+
+  it("Should prevent self delegation", async () => {});
 });
 
 //Helper functions
