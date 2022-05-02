@@ -31,7 +31,7 @@ contract VotingContract {
         chairPerson = msg.sender;
     }
 
-    function changeChairPerson(address newChairPerson) public {
+    function changeChairPerson(address newChairPerson) external {
         require(msg.sender == chairPerson, "Only chairperson allowed.");
         require(newChairPerson != address(0), "Invalid address");
         chairPerson = newChairPerson;
